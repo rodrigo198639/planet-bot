@@ -28,6 +28,9 @@ app.post('/webhook', async (req, res) => {
     if (!message || message.type !== 'text') return;
     const from = message.from;
     const text = message.text.body;
+    
+    console.log('Mensaje recibido de:', from, '- Texto:', text);
+
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -42,9 +45,13 @@ app.post('/webhook', async (req, res) => {
         ]
       })
     });
+
     const groqData = await groqRes.json();
+    console.log('Groq status:', groqRes.status, JSON.stringify(groqData).substring(0, 300));
+
     const reply = groqData.choices?.[0]?.message?.content || 'No pude responder.';
-    await fetch(`https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`, {
+
+    const waRes = await fetch(`https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,8 +64,13 @@ app.post('/webhook', async (req, res) => {
         text: { body: reply }
       })
     });
+
+    const waData = await waRes.json();
+    console.log('WhatsApp API status:', waRes.status, JSON.stringify(waData).substring(0, 300));
+
   } catch (err) {
-    console.error('Error:', err);
+    console.error('Error completo:', err.message);
+    console.error('Stack:', err.stack);
   }
 });
 
