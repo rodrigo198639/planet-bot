@@ -1,4 +1,3 @@
-
 const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({default: F}) => F(...args));
 const app = express();
@@ -7,7 +6,7 @@ app.use(express.json());
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 const SYSTEM_PROMPT = `Eres el asistente virtual del Gimnasio Planet, ubicado en Punta Arenas, Chile. Eres amigable, directo y motivador. Responde en español.`;
 
@@ -15,9 +14,7 @@ app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-  console.log('Verificación webhook:', mode, token);
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('Webhook verificado');
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -25,33 +22,28 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  console.log('Mensaje recibido:', JSON.stringify(req.body));
   res.sendStatus(200);
   try {
-    const entry = req.body.entry?.[0];
-    const change = entry?.changes?.[0];
-    const message = change?.value?.messages?.[0];
+    const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (!message || message.type !== 'text') return;
     const from = message.from;
     const text = message.text.body;
-    console.log('Texto:', text, 'De:', from);
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: text }]
+        model: 'llama3-8b-8192',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: text }
+        ]
       })
     });
-    const claudeData = await claudeRes.json();
-    console.log('Claude respuesta:', JSON.stringify(claudeData));
-    const reply = claudeData.content?.[0]?.text || 'No pude responder.';
+    const groqData = await groqRes.json();
+    const reply = groqData.choices?.[0]?.message?.content || 'No pude responder.';
     await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
@@ -65,7 +57,6 @@ app.post('/webhook', async (req, res) => {
         text: { body: reply }
       })
     });
-    console.log('Respuesta enviada a', from);
   } catch (err) {
     console.error('Error:', err);
   }
