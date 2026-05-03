@@ -44,7 +44,7 @@ app.post('/webhook', async (req, res) => {
     });
     const groqData = await groqRes.json();
     const reply = groqData.choices?.[0]?.message?.content || 'No pude responder.';
-    await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`, {
+    await fetch(`https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
